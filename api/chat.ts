@@ -7,9 +7,10 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { message, history } = req.body;
+    const prompt = message;
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: process.env.API_KEY,
     });
 
     const systemInstruction = `
@@ -25,7 +26,7 @@ Keep responses warm, short, and friendly.
           role: h.role,
           parts: [{ text: h.content }],
         })),
-        { role: "user", parts: [{ text: message }] },
+        { role: "user", parts: [{ text: prompt }] },
       ],
       config: {
         systemInstruction,
@@ -33,12 +34,10 @@ Keep responses warm, short, and friendly.
       },
     });
 
-    return res.status(200).json({
-      reply: response.text,
-    });
+    res.status(200).json({ reply: response.text });
   } catch (error) {
     console.error("Gemini error:", error);
-    return res.status(500).json({
+    res.status(500).json({
       reply: "The kitchen is busy 🍲 Please try again.",
     });
   }
