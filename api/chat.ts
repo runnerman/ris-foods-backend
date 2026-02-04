@@ -1,3 +1,9 @@
+import { GoogleGenAI } from "@google/genai";
+
+export const config = {
+  runtime: "nodejs",
+};
+
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -5,13 +11,6 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { message, history } = req.body;
-
-    if (!message) {
-      return res.status(400).json({ error: "Message is required" });
-    }
-
-    // ✅ Dynamic import (CRITICAL FIX)
-    const { GoogleGenAI } = await import("@google/genai");
 
     const ai = new GoogleGenAI({
       apiKey: process.env.API_KEY!,
@@ -38,12 +37,12 @@ Keep responses warm, short, and friendly.
       },
     });
 
-    res.status(200).json({
-      reply: response.text ?? "No response from Chef Malabar.",
+    return res.status(200).json({
+      reply: response.text,
     });
   } catch (error) {
     console.error("Gemini error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       reply: "The kitchen is busy 🍲 Please try again.",
     });
   }
