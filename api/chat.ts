@@ -6,10 +6,10 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { prompt, history } = req.body;
+    const { message, history } = req.body;
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.API_KEY,
+      apiKey: process.env.GEMINI_API_KEY, // ✅ FIXED
     });
 
     const systemInstruction = `
@@ -25,7 +25,7 @@ Keep responses warm, short, and friendly.
           role: h.role,
           parts: [{ text: h.content }],
         })),
-        { role: "user", parts: [{ text: prompt }] },
+        { role: "user", parts: [{ text: message }] }, // ✅ FIXED
       ],
       config: {
         systemInstruction,
@@ -33,7 +33,9 @@ Keep responses warm, short, and friendly.
       },
     });
 
-    res.status(200).json({ reply: response.text });
+    res.status(200).json({
+      reply: response.text,
+    });
   } catch (error) {
     console.error("Gemini error:", error);
     res.status(500).json({
