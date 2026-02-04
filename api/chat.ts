@@ -9,7 +9,7 @@ export default async function handler(req: any, res: any) {
     const { message, history } = req.body;
 
     const ai = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY, // ✅ FIXED
+      apiKey: process.env.GEMINI_API_KEY,
     });
 
     const systemInstruction = `
@@ -25,7 +25,7 @@ Keep responses warm, short, and friendly.
           role: h.role,
           parts: [{ text: h.content }],
         })),
-        { role: "user", parts: [{ text: message }] }, // ✅ FIXED
+        { role: "user", parts: [{ text: message }] },
       ],
       config: {
         systemInstruction,
@@ -33,12 +33,12 @@ Keep responses warm, short, and friendly.
       },
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       reply: response.text,
     });
   } catch (error) {
     console.error("Gemini error:", error);
-    res.status(500).json({
+    return res.status(500).json({
       reply: "The kitchen is busy 🍲 Please try again.",
     });
   }
