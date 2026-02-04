@@ -1,9 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
 
-export const config = {
-  runtime: "nodejs",
-};
-
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -12,8 +8,12 @@ export default async function handler(req: any, res: any) {
   try {
     const { message, history } = req.body;
 
+    if (!message) {
+      return res.status(400).json({ reply: "No message received" });
+    }
+
     const ai = new GoogleGenAI({
-      apiKey: process.env.API_KEY!,
+      apiKey: process.env.API_KEY,
     });
 
     const systemInstruction = `
@@ -38,7 +38,7 @@ Keep responses warm, short, and friendly.
     });
 
     return res.status(200).json({
-      reply: response.text,
+      reply: response.text || "Chef Malabar is thinking… 🍳",
     });
   } catch (error) {
     console.error("Gemini error:", error);
