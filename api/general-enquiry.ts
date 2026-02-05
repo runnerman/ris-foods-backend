@@ -4,14 +4,18 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
-  // ✅ CORS headers
+  // ✅ ALWAYS set CORS headers (for all responses)
   res.setHeader("Access-Control-Allow-Origin", "https://ris-foods.vercel.app");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
+  res.setHeader("Access-Control-Max-Age", "86400");
 
-  // ✅ Handle preflight request
+  // ✅ PRE-FLIGHT (this is the key fix)
   if (req.method === "OPTIONS") {
-    return res.status(200).end();
+    return res.status(204).end(); // ← use 204, not 200
   }
 
   if (req.method !== "POST") {
@@ -19,13 +23,12 @@ export default async function handler(
   }
 
   try {
-    const { full_name, email, mobile, message } = req.body;
+    const { full_name, email, mobile, message } = req.body || {};
 
     if (!full_name || !email || !mobile || !message) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // TODO: send email / save to DB (later)
     console.log("General enquiry received:", {
       full_name,
       email,
@@ -35,7 +38,7 @@ export default async function handler(
 
     return res.status(200).json({ success: true });
   } catch (err) {
-    console.error(err);
+    console.error("General enquiry error:", err);
     return res.status(500).json({ error: "Server error" });
   }
 }
