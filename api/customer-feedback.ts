@@ -55,7 +55,7 @@ export default async function handler(
     }
 
     /* ---------- Insert into Supabase ---------- */
-    const { error } = await supabase.from("feedback").insert([
+    const { error } = await supabase.from("customer_feedback").insert([
       {
         name: name.trim(),
         email: email.trim().toLowerCase(),
