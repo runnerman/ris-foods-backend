@@ -1,163 +1,97 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-
-/* ---------------- CORS SETUP ---------------- */
+import { supabase } from "../lib/supabase";
 
 const ALLOWED_ORIGINS = [
-  "https://ris-foods.vercel.app",
-  "https://www.ris-foods.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:5173",
+    "https://ris-foods.vercel.app",
+    "https://www.ris-foods.vercel.app",
+    "http://localhost:3000",
+    "http://localhost:5173",
 ];
 
-const PREVIEW_ORIGIN_REGEX = /^https:\/\/ris-foods(?:-[\w-]+)*\.vercel\.app$/;
-
-const getOrigin = (originHeader: string | string[] | undefined): string => {
-  if (Array.isArray(originHeader)) return originHeader[0] ?? "";
-  return originHeader ?? "";
-};
-
-const isAllowedOrigin = (origin: string): boolean => {
-  if (!origin) return false;
-  if (ALLOWED_ORIGINS.includes(origin)) return true;
-  if (PREVIEW_ORIGIN_REGEX.test(origin)) return true;
-  return false;
-};
-
-/* ---------------- RATE LIMIT ---------------- */
-
-const rateLimit = new Map<string, { count: number; timestamp: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 5;
-
-/* ---------------- HANDLER ---------------- */
-
 export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
+    req: VercelRequest,
+    res: VercelResponse
 ) {
-  const origin = getOrigin(req.headers.origin);
-  const clientIp =
-    (req.headers["x-forwarded-for"] as string) ||
-    req.socket.remoteAddress ||
-    "unknown";
+    const origin = req.headers.origin || "";
 
-  /* ----- CORS HEADERS ----- */
-  if (isAllowedOrigin(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
-
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Origin, Authorization"
-  );
-  res.setHeader("Access-Control-Max-Age", "86400");
-  res.setHeader("Vary", "Origin");
-
-  /* ----- PRE-FLIGHT ----- */
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  try {
-    /* ----- RATE LIMIT ----- */
-    const now = Date.now();
-    const data = rateLimit.get(clientIp) || { count: 0, timestamp: now };
-
-    if (now - data.timestamp > RATE_LIMIT_WINDOW) {
-      data.count = 1;
-      data.timestamp = now;
+    /* ---------- CORS ---------- */
+    if (ALLOWED_ORIGINS.includes(origin)) {
+        res.setHeader("Access-Control-Allow-Origin", origin);
     } else {
-      data.count++;
+        res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGINS[0]);
     }
 
-    rateLimit.set(clientIp, data);
+    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Max-Age", "86400");
 
-    if (data.count > RATE_LIMIT_MAX) {
-      return res.status(429).json({
-        error: "Too many requests. Please try again later.",
-      });
+    if (req.method === "OPTIONS") {
+        return res.status(200).end();
     }
 
-    /* ----- BODY PARSE ----- */
-    const {
-      name,
-      firm_name,
-      address,
-      telephone,
-      mobile,
-      email,
-      type,
-      year_of_establishment,
-      turnover,
-      warehouse_area,
-      comments,
-    } = req.body;
-
-    /* ----- REQUIRED VALIDATION ----- */
-    if (!name || !firm_name || !address || !mobile || !email || !type) {
-      return res.status(400).json({
-        error: "Missing required fields",
-      });
+    if (req.method !== "POST") {
+        return res.status(405).json({ error: "Method not allowed" });
     }
 
-    /* ----- FORMAT VALIDATION ----- */
-    const errors: Record<string, string> = {};
+    try {
+        const {
+            full_name,
+            company_name,
+            business_address,
+            telephone,
+            mobile,
+            email,
+            firm_type,
+            year_of_establishment,
+            turnover_last_fy,
+            warehouse_area_sqft,
+            comments
+        } = req.body;
 
-    if (name.trim().length < 2) errors.name = "Name too short";
-    if (firm_name.trim().length < 2) errors.firm_name = "Firm name required";
+        /* ---------- Validation ---------- */
+        if (!full_name || !company_name || !business_address || !mobile || !email) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) errors.email = "Invalid email";
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: "Invalid email address" });
+        }
 
-    const mobileRegex = /^\d{10}$/;
-    if (!mobileRegex.test(mobile.replace(/\D/g, ""))) {
-      errors.mobile = "Invalid mobile number";
+        if (!/^\d{10}$/.test(mobile)) {
+            return res.status(400).json({ error: "Invalid mobile number" });
+        }
+
+        /* ---------- Insert into Supabase ---------- */
+        const { error } = await supabase.from("distributor_enquiries").insert([
+            {
+                full_name: full_name.trim(),
+                company_name: company_name.trim(),
+                business_address: business_address.trim(),
+                telephone: telephone?.trim() || null,
+                mobile,
+                email: email.trim().toLowerCase(),
+                firm_type: firm_type?.trim() || null,
+                year_of_establishment: year_of_establishment?.trim() || null,
+                turnover_last_fy: turnover_last_fy?.trim() || null,
+                warehouse_area_sqft: warehouse_area_sqft?.trim() || null,
+                comments: comments?.trim() || null,
+            },
+        ]);
+
+        if (error) {
+            console.error("Supabase insert error:", error);
+            return res.status(500).json({ error: "Database insert failed" });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Distributor enquiry submitted successfully",
+        });
+
+    } catch (err) {
+        console.error("Distributor enquiry error:", err);
+        return res.status(500).json({ error: "Internal server error" });
     }
-
-    if (Object.keys(errors).length > 0) {
-      return res.status(400).json({
-        error: "Validation failed",
-        details: errors,
-      });
-    }
-
-    /* ----- SANITIZE ----- */
-    const enquiry = {
-      name: name.trim(),
-      firm_name: firm_name.trim(),
-      address: address.trim(),
-      telephone: telephone?.trim() || null,
-      mobile: mobile.replace(/\D/g, ""),
-      email: email.trim().toLowerCase(),
-      type,
-      year_of_establishment: year_of_establishment || null,
-      turnover: turnover || null,
-      warehouse_area: warehouse_area || null,
-      comments: comments?.trim() || null,
-      ip: clientIp,
-      created_at: new Date().toISOString(),
-    };
-
-    console.log("Distributor enquiry received:", enquiry);
-
-    /* ----- SUCCESS ----- */
-    return res.status(200).json({
-      success: true,
-      message: "Distributor enquiry submitted successfully!",
-      data: {
-        id: `DIST-${Date.now()}`,
-      },
-    });
-  } catch (err) {
-    console.error("Distributor enquiry error:", err);
-    return res.status(500).json({
-      error: "Internal server error",
-    });
-  }
 }
+
