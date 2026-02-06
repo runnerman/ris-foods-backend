@@ -25,8 +25,13 @@ export default async function handler(
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Max-Age", "86400");
 
-  if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).end();
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
     const { name, email, mobile, feedback, rating } = req.body;
@@ -37,41 +42,41 @@ export default async function handler(
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const mobileRegex = /^\d{10}$/;
-
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email" });
+      return res.status(400).json({ error: "Invalid email address" });
     }
 
-    if (!mobileRegex.test(mobile)) {
+    if (!/^\d{10}$/.test(mobile)) {
       return res.status(400).json({ error: "Invalid mobile number" });
     }
 
     if (rating < 1 || rating > 5) {
-      return res.status(400).json({ error: "Rating must be 1–5" });
+      return res.status(400).json({ error: "Rating must be between 1 and 5" });
     }
 
     /* ---------- Insert into Supabase ---------- */
-    const { error } = await supabase.from("feedback").insert({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      mobile,
-      message: feedback.trim(),
-      rating,
-    });
+    const { error } = await supabase.from("feedback").insert([
+      {
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
+        mobile,
+        rating,
+        message: feedback.trim(),
+      },
+    ]);
 
     if (error) {
       console.error("Supabase insert error:", error);
-      return res.status(500).json({ error: "Database error" });
+      return res.status(500).json({ error: "Database insert failed" });
     }
 
     return res.status(200).json({
       success: true,
-      message: "Feedback submitted successfully",
+      message: "Thank you for your feedback!",
     });
 
   } catch (err) {
     console.error("Customer feedback error:", err);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
