@@ -61,7 +61,7 @@ export default async function handler(
         email: email.trim().toLowerCase(),
         mobile,
         rating,
-        message: feedback.trim(),
+        feedback: feedback.trim(),  // ✅ Changed from "message" to "feedback"
       },
     ]);
 
