@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { supabase } from "../lib/supabase";
 
 const ALLOWED_ORIGINS = [
   "https://ris-foods.vercel.app",
@@ -20,39 +21,26 @@ export default async function handler(
     res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGINS[0]);
   }
 
-  res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Origin"
-  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   res.setHeader("Access-Control-Max-Age", "86400");
 
-  // ✅ Preflight
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  // Only POST allowed
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).end();
 
   try {
     const { name, email, mobile, feedback, rating } = req.body;
 
     /* ---------- Validation ---------- */
     if (!name || !email || !mobile || !feedback || !rating) {
-      return res.status(400).json({
-        error: "Missing required fields",
-      });
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const mobileRegex = /^\d{10}$/;
 
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email address" });
+      return res.status(400).json({ error: "Invalid email" });
     }
 
     if (!mobileRegex.test(mobile)) {
@@ -60,31 +48,30 @@ export default async function handler(
     }
 
     if (rating < 1 || rating > 5) {
-      return res.status(400).json({ error: "Rating must be between 1 and 5" });
+      return res.status(400).json({ error: "Rating must be 1–5" });
     }
 
-    /* ---------- Process ---------- */
-    const feedbackData = {
+    /* ---------- Insert into Supabase ---------- */
+    const { error } = await supabase.from("feedback").insert({
       name: name.trim(),
       email: email.trim().toLowerCase(),
       mobile,
-      feedback: feedback.trim(),
+      message: feedback.trim(),
       rating,
-      submittedAt: new Date().toISOString(),
-    };
+    });
 
-    // For now: log (later DB / email)
-    console.log("Customer feedback received:", feedbackData);
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return res.status(500).json({ error: "Database error" });
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Thank you for your feedback!",
+      message: "Feedback submitted successfully",
     });
 
-  } catch (error) {
-    console.error("Customer feedback error:", error);
-    return res.status(500).json({
-      error: "Internal server error",
-    });
+  } catch (err) {
+    console.error("Customer feedback error:", err);
+    return res.status(500).json({ error: "Server error" });
   }
 }
