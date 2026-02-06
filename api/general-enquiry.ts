@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { supabase } from "../lib/supabase";
+import { sendEmail, createGeneralEnquiryEmail } from "../lib/email";
 
 const ALLOWED_ORIGINS = [
     "https://ris-foods.vercel.app",
@@ -68,6 +69,17 @@ export default async function handler(
             console.error("Supabase insert error:", error);
             return res.status(500).json({ error: "Database insert failed" });
         }
+
+        /* ---------- Send Email Notification ---------- */
+        const emailContent = createGeneralEnquiryEmail({
+            full_name: full_name.trim(),
+            email: email.trim().toLowerCase(),
+            mobile,
+            message: message.trim(),
+        });
+
+        await sendEmail(emailContent);
+        // Note: We don't fail the request if email fails, just log it
 
         return res.status(200).json({
             success: true,
